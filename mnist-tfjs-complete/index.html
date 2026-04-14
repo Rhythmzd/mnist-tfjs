@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MNIST Digit Recognition - TensorFlow.js</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 900px;
+            width: 100%;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .canvas-section {
+            text-align: center;
+        }
+        
+        .canvas-container {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 2px solid #e0e0e0;
+        }
+        
+        canvas {
+            border: 2px solid #333;
+            border-radius: 10px;
+            background: black;
+            cursor: crosshair;
+            touch-action: none;
+        }
+        
+        .buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+        
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+        
+        .result-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .prediction-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            padding: 40px;
+            color: white;
+            text-align: center;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        
+        .digit-display {
+            font-size: 6em;
+            font-weight: 800;
+            line-height: 1;
+            margin-bottom: 10px;
+        }
+        
+        .confidence {
+            font-size: 1.5em;
+            opacity: 0.9;
+        }
+        
+        .probabilities {
+            width: 100%;
+        }
+        
+        .prob-bar {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+        }
+        
+        .prob-label {
+            width: 30px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .prob-track {
+            flex: 1;
+            background: #e0e0e0;
+            border-radius: 10px;
+            height: 25px;
+            overflow: hidden;
+            margin: 0 10px;
+        }
+        
+        .prob-fill {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+        
+        .prob-value {
+            width: 50px;
+            text-align: right;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .preview-section {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .preview-canvas {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: black;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #667eea;
+            font-size: 1.2em;
+        }
+        
+        .tips {
+            background: #e8f4f8;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            h1 {
+                font-size: 1.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔢 MNIST Digit Recognition</h1>
+        <p class="subtitle">TensorFlow.js Pure Frontend | Draw a digit (0-9)</p>
+        
+        <div id="loading" class="loading">Loading model...</div>
+        
+        <div id="app" style="display: none;">
+            <div class="main-content">
+                <div class="canvas-section">
+                    <h3>Draw Here</h3>
+                    <div class="canvas-container">
+                        <canvas id="drawCanvas" width="280" height="280"></canvas>
+                    </div>
+                    <div class="buttons">
+                        <button class="btn-primary" onclick="predict()">🔍 Predict</button>
+                        <button class="btn-secondary" onclick="clearCanvas()">🗑️ Clear</button>
+                    </div>
+                </div>
+                
+                <div class="result-section">
+                    <div id="predictionBox" class="prediction-box" style="display: none;">
+                        <div class="digit-display" id="resultDigit">-</div>
+                        <div class="confidence" id="resultConfidence">Draw and click Predict</div>
+                    </div>
+                    
+                    <div id="emptyState" class="prediction-box" style="background: #f0f0f0; color: #666;">
+                        <div style="font-size: 3em; margin-bottom: 10px;">✏️</div>
+                        <div>Draw a digit and click Predict</div>
+                    </div>
+                    
+                    <div class="probabilities" id="probabilities"></div>
+                </div>
+            </div>
+            
+            <div class="preview-section">
+                <h4>Preprocessed Image (28×28)</h4>
+                <canvas id="previewCanvas" class="preview-canvas" width="112" height="112"></canvas>
+                <p style="color: #666; font-size: 0.9em; margin-top: 10px;">This is how the model sees your digit</p>
+            </div>
+            
+            <div class="tips">
+                <strong>💡 Tips:</strong>
+                <ul style="margin-left: 20px; margin-top: 5px;">
+                    <li>Draw in the center of the canvas</li>
+                    <li>Make the digit large and clear</li>
+                    <li>Use thick strokes</li>
+                    <li>Avoid overlapping lines</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('drawCanvas');
+        const ctx = canvas.getContext('2d');
+        const previewCanvas = document.getElementById('previewCanvas');
+        const previewCtx = previewCanvas.getContext('2d');
+        
+        // Set canvas background to black
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Drawing state
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+        
+        // Model weights (will be loaded from JSON)
+        let modelWeights = null;
+        
+        // Drawing functions
+        function getPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+        
+        function startDrawing(e) {
+            isDrawing = true;
+            const pos = getPos(e);
+            lastX = pos.x;
+            lastY = pos.y;
+            e.preventDefault();
+        }
+        
+        function draw(e) {
+            if (!isDrawing) return;
+            const pos = getPos(e);
+            
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 20;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(pos.x, pos.y);
+            ctx.stroke();
+            
+            lastX = pos.x;
+            lastY = pos.y;
+            e.preventDefault();
+        }
+        
+        function stopDrawing() {
+            isDrawing = false;
+        }
+        
+        // Event listeners
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+        
+        canvas.addEventListener('touchstart', startDrawing);
+        canvas.addEventListener('touchmove', draw);
+        canvas.addEventListener('touchend', stopDrawing);
+        
+        function clearCanvas() {
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            document.getElementById('predictionBox').style.display = 'none';
+            document.getElementById('emptyState').style.display = 'block';
+            document.getElementById('probabilities').innerHTML = '';
+            previewCtx.fillStyle = 'black';
+            previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+        }
+        
+        // Preprocess image
+        function preprocessImage() {
+            // Create a temporary canvas for resizing
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = 28;
+            tempCanvas.height = 28;
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            // Draw original canvas scaled down to 28x28
+            tempCtx.drawImage(canvas, 0, 0, 28, 28);
+            
+            // Get image data
+            const imageData = tempCtx.getImageData(0, 0, 28, 28);
+            const data = imageData.data;
+            
+            // Convert to grayscale (0-1)
+            const processed = new Float32Array(784);
+            for (let i = 0; i < 784; i++) {
+                // Get red channel (R=G=B in grayscale)
+                const pixel = data[i * 4] / 255.0;
+                processed[i] = pixel;
+            }
+            
+            // Draw preview
+            previewCtx.fillStyle = 'black';
+            previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+            
+            const previewData = previewCtx.createImageData(112, 112);
+            for (let y = 0; y < 28; y++) {
+                for (let x = 0; x < 28; x++) {
+                    const pixel = processed[y * 28 + x] * 255;
+                    // Scale up 4x for preview
+                    for (let dy = 0; dy < 4; dy++) {
+                        for (let dx = 0; dx < 4; dx++) {
+                            const idx = ((y * 4 + dy) * 112 + (x * 4 + dx)) * 4;
+                            previewData.data[idx] = pixel;
+                            previewData.data[idx + 1] = pixel;
+                            previewData.data[idx + 2] = pixel;
+                            previewData.data[idx + 3] = 255;
+                        }
+                    }
+                }
+            }
+            previewCtx.putImageData(previewData, 0, 0);
+            
+            return processed;
+        }
+        
+        // MLP forward pass
+        function relu(x) {
+            return Math.max(0, x);
+        }
+        
+        function softmax(arr) {
+            const max = Math.max(...arr);
+            const exp = arr.map(x => Math.exp(x - max));
+            const sum = exp.reduce((a, b) => a + b, 0);
+            return exp.map(x => x / sum);
+        }
+        
+        function predictWithModel(input) {
+            if (!modelWeights) {
+                throw new Error('Model not loaded');
+            }
+            
+            // Apply scaling (if available)
+            if (modelWeights.scaler_mean && modelWeights.scaler_scale) {
+                for (let i = 0; i < input.length; i++) {
+                    input[i] = (input[i] - modelWeights.scaler_mean[i]) / modelWeights.scaler_scale[i];
+                }
+            }
+            
+            // Forward pass through layers
+            let activations = input;
+            
+            for (let layer = 0; layer < modelWeights.hidden_sizes.length; layer++) {
+                const weights = modelWeights[`w_${layer}`];
+                const biases = modelWeights[`b_${layer}`];
+                
+                // Matrix multiplication
+                const newActivations = new Array(biases.length);
+                for (let i = 0; i < biases.length; i++) {
+                    let sum = biases[i];
+                    for (let j = 0; j < activations.length; j++) {
+                        sum += activations[j] * weights[j][i];
+                    }
+                    newActivations[i] = relu(sum);
+                }
+                activations = newActivations;
+            }
+            
+            // Output layer
+            const outputWeights = modelWeights[`w_${modelWeights.hidden_sizes.length}`];
+            const outputBiases = modelWeights[`b_${modelWeights.hidden_sizes.length}`];
+            
+            const output = new Array(outputBiases.length);
+            for (let i = 0; i < outputBiases.length; i++) {
+                let sum = outputBiases[i];
+                for (let j = 0; j < activations.length; j++) {
+                    sum += activations[j] * outputWeights[j][i];
+                }
+                output[i] = sum;
+            }
+            
+            return softmax(output);
+        }
+        
+        function predict() {
+            try {
+                // Preprocess
+                const processed = preprocessImage();
+                
+                // Predict
+                const probabilities = predictWithModel(processed);
+                
+                // Get result
+                const predictedDigit = probabilities.indexOf(Math.max(...probabilities));
+                const confidence = probabilities[predictedDigit];
+                
+                // Display result
+                document.getElementById('emptyState').style.display = 'none';
+                document.getElementById('predictionBox').style.display = 'block';
+                document.getElementById('resultDigit').textContent = predictedDigit;
+                document.getElementById('resultConfidence').textContent = 
+                    `Confidence: ${(confidence * 100).toFixed(1)}%`;
+                
+                // Display probabilities
+                displayProbabilities(probabilities);
+                
+            } catch (error) {
+                console.error('Prediction error:', error);
+                alert('Error during prediction. Please try again.');
+            }
+        }
+        
+        function displayProbabilities(probs) {
+            const container = document.getElementById('probabilities');
+            container.innerHTML = '<h4 style="margin-bottom: 10px;">All Probabilities</h4>';
+            
+            // Get top 3
+            const indexed = probs.map((p, i) => ({ prob: p, digit: i }));
+            indexed.sort((a, b) => b.prob - a.prob);
+            
+            for (let i = 0; i < 10; i++) {
+                const { prob, digit } = indexed[i];
+                const isTop = i < 3;
+                const color = isTop ? 
+                    (i === 0 ? '#4CAF50' : i === 1 ? '#FFC107' : '#FF9800') : 
+                    '#9E9E9E';
+                
+                const bar = document.createElement('div');
+                bar.className = 'prob-bar';
+                bar.innerHTML = `
+                    <span class="prob-label">${digit}</span>
+                    <div class="prob-track">
+                        <div class="prob-fill" style="width: ${prob * 100}%; background: ${color};"></div>
+                    </div>
+                    <span class="prob-value">${(prob * 100).toFixed(1)}%</span>
+                `;
+                container.appendChild(bar);
+            }
+        }
+        
+        // Load model weights
+        async function loadModel() {
+            try {
+                const response = await fetch('model/model_weights.json');
+                if (!response.ok) {
+                    throw new Error('Model not found');
+                }
+                modelWeights = await response.json();
+                
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('app').style.display = 'block';
+                console.log('Model loaded successfully');
+            } catch (error) {
+                console.error('Failed to load model:', error);
+                document.getElementById('loading').innerHTML = 
+                    '<div style="color: red; padding: 20px;">' +
+                    '<h3>❌ Failed to load model</h3>' +
+                    '<p>Please check:</p>' +
+                    '<ol style="text-align: left; display: inline-block;">' +
+                    '<li>model/model_weights.json exists in repository</li>' +
+                    '<li>File size is about 5 MB</li>' +
+                    '<li>Try accessing: <a href="model/model_weights.json" target="_blank">model/model_weights.json</a></li>' +
+                    '</ol>' +
+                    '<p style="margin-top: 15px;"><button onclick="location.reload()">🔄 Retry</button></p>' +
+                    '</div>';
+            }
+        }
+        
+        // Load model on page load
+        window.addEventListener('load', loadModel);
+    </script>
+</body>
+</html>
